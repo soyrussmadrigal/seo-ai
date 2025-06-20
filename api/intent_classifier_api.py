@@ -1,32 +1,27 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
 import openai
 import os
+import json
 from dotenv import load_dotenv
 
-# Cargar variables del .env
 load_dotenv()
 
-# Verificamos si la API Key existe
 openai.api_key = os.getenv("OPENAI_API_KEY")
 if not openai.api_key:
-    raise ValueError("❌ OPENAI_API_KEY is not set in environment variables")
+    raise ValueError("❌ OPENAI_API_KEY no encontrada en el archivo .env")
 
-# Inicializar FastAPI
-app = FastAPI(title="SEO Intent Classifier")
+router = APIRouter()
 
-# Esquema de entrada
 class KeywordRequest(BaseModel):
     keywords: List[str]
 
-# Esquema de salida
 class KeywordResponse(BaseModel):
     query: str
     intent: str
     recommended_format: str
 
-# Clasificación individual usando OpenAI
 def clasificar_keyword(query: str) -> dict:
     prompt = f"""
 Dada la siguiente consulta de búsqueda de un usuario: "{query}", responde en JSON con dos campos:
@@ -38,7 +33,6 @@ Ejemplo de salida:
 
 Respuesta:
 """
-
     try:
         response = openai.chat.completions.create(
             model="gpt-4",
@@ -46,14 +40,16 @@ Respuesta:
             temperature=0.3,
         )
         content = response.choices[0].message.content.strip()
-        return eval(content)  # Para producción usar `json.loads`
+        return json.loads(content)  # 👈 más seguro que eval
     except Exception as e:
         print(f"❌ Error al clasificar '{query}': {e}")
         return {"intent": "desconocido", "recommended_format": "otro"}
 
-# Ruta principal para clasificar
-@app.post("/clasificar", response_model=List[KeywordResponse])
+@router.post("/clasificar", response_model=List[KeywordResponse])
 def clasificar_keywords(request: KeywordRequest):
+    if not request.keywords:
+        raise HTTPException(status_code=400, detail="La lista de keywords está vacía")
+
     resultados = []
     for query in request.keywords:
         print(f"📌 Clasificando: {query}")
@@ -64,13 +60,3 @@ def clasificar_keywords(request: KeywordRequest):
             "recommended_format": resultado["recommended_format"]
         })
     return resultados
-
-from app.gsc_fetcher import extraer_datos_gsc
-
-@app.get("/extraer-datos")
-def extraer_datos():
-    try:
-        datos = extraer_datos_gsc()
-        return {"status": "success", "rows": len(datos), "data": datos}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
