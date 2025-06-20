@@ -1,47 +1,38 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import HistoryTable from "../components/HistoryTable"; // ajusta si movés de carpeta
+import { useEffect, useState } from 'react';
+import HistoryTable from '../components/HistoryTable';
 
 export default function HistoryPage() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  // Paso 1: Clasificar keywords pendientes automáticamente
   useEffect(() => {
-    const classifyAndLoad = async () => {
+    const loadData = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/classify-pending", {
-          method: "POST",
-        });
-        const result = await res.json();
+        const res = await fetch("http://127.0.0.1:8000/history");
+        const rawText = await res.text();
+        console.log("📦 Raw response:", rawText);
 
-        if (res.ok && result.status === "success") {
-          setMessage(`✅ ${result.saved} keywords classified successfully`);
+        const parsed = JSON.parse(rawText);
+
+        if (Array.isArray(parsed)) {
+          setData(parsed);
+          setMessage(`✅ ${parsed.length} keywords loaded`);
         } else {
-          setMessage("⚠️ No new keywords to classify or error occurred");
+          setMessage("⚠️ Could not load history data");
+          console.warn("⚠️ Unexpected response:", parsed);
         }
       } catch (err) {
-        console.error("❌ Failed to classify pending keywords", err);
-        setMessage("❌ Error classifying keywords");
-      }
-
-      // Luego de clasificar, cargar historial actualizado
-      try {
-        const histRes = await fetch("http://127.0.0.1:8000/history");
-        const histData = await histRes.json();
-        if (Array.isArray(histData)) {
-          setData(histData);
-        }
-      } catch (err) {
-        console.error("❌ Failed to load keyword history", err);
+        console.error("❌ Error loading history:", err);
+        setMessage("❌ Error loading history");
       } finally {
         setLoading(false);
       }
     };
 
-    classifyAndLoad();
+    loadData();
   }, []);
 
   return (

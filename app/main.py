@@ -7,13 +7,13 @@ from datetime import datetime
 from typing import List
 
 # Third-party
-from fastapi import FastAPI, Depends
-from fastapi import HTTPException 
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import openai
+import asyncio
 
 # Internal
 from app.db import SessionLocal, engine
@@ -63,10 +63,35 @@ class KeywordInput(BaseModel):
     ctr: float
     position: float
 
+class KeywordHistoryResponse(BaseModel):
+    id: int
+    keyword: str
+    intent: str
+    format: str
+    clicks: int
+    impressions: int
+    ctr: float
+    position: float
+    created_at: datetime
 
-# === Intent Classification Function ===
+    model_config = {
+        "from_attributes": True
+    }
 
-def clasificar_keyword(query: str) -> dict:
+
+# === Database Dependency ===
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+# === OpenAI Classification Function ===
+
+def classify_keyword_with_ai(query: str) -> dict:
     prompt = f"""
 Given the following user search query: "{query}", respond in JSON with two fields:
 - "intent": choose from ["informational", "transactional", "navigational"]
@@ -90,16 +115,6 @@ Response:
         return {"intent": "unknown", "recommended_format": "other"}
 
 
-# === Database Dependency ===
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 # === API Routes ===
 
 @app.post("/clasificar", response_model=List[KeywordResponse])
@@ -107,7 +122,7 @@ def clasificar_keywords(request: KeywordRequest):
     results = []
     for query in request.keywords:
         print(f"📌 Classifying: {query}")
-        result = clasificar_keyword(query)
+        result = classify_keyword_with_ai(query)
         results.append({
             "query": query,
             "intent": result["intent"],
@@ -134,23 +149,6 @@ def save_keywords(data: List[KeywordInput], db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 
-# === Keyword History Endpoint ===
-
-class KeywordHistoryResponse(BaseModel):
-    id: int
-    keyword: str
-    intent: str
-    format: str
-    clicks: int
-    impressions: int
-    ctr: float
-    position: float
-    created_at: datetime
-
-    model_config = {
-    "from_attributes": True
-}
-
 @app.get("/history", response_model=List[KeywordHistoryResponse])
 def read_history(db: Session = Depends(get_db)):
     data = db.query(KeywordHistory).order_by(KeywordHistory.created_at.desc()).all()
@@ -159,53 +157,29 @@ def read_history(db: Session = Depends(get_db)):
     return data
 
 
-# === DB Table Creation ===
-
-Base.metadata.create_all(bind=engine)
-
-@app.get("/fetch-and-save")
-def fetch_and_save(db: Session = Depends(get_db)):
-    try:
-        raw_data = extraer_datos_gsc()
-        if not raw_data:
-            raise HTTPException(status_code=204, detail="No data extracted from GSC")
-
-        for row in raw_data:
-            record = KeywordHistory(
-                keyword=row["query"],
-                intent="pending",  # or default
-                format="pending",  # or default
-                clicks=row.get("clicks", 0),
-                impressions=row.get("impressions", 0),
-                ctr=row.get("ctr", 0.0),
-                position=row.get("position", 0.0),
-            )
-            db.add(record)
-
-        db.commit()
-        return {"status": "success", "saved_records": len(raw_data)}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-  # === Endpoint to classify unprocessed keywords ===
+# === Classify Pending Keywords ===
 
 @app.post("/classify-pending")
-def classify_pending_keywords(db: Session = Depends(get_db)):
-    pending_keywords = db.query(KeywordHistory).filter(KeywordHistory.intent == None).all()
-    print(f"🔍 Found {len(pending_keywords)} pending keywords")  # ← este print es clave
+async def classify_pending_keywords(db: Session = Depends(get_db)):
+    pending_keywords = db.query(KeywordHistory).filter(
+        KeywordHistory.intent == "pending",
+        KeywordHistory.format == "pending"
+    ).all()
 
-    if not pending_keywords:
-        return {"status": "success", "saved": 0}
+    saved_count = 0
 
-    count = 0
-    for row in pending_keywords:
-        result = clasificar_keyword(row.keyword)
-        print(f"🧠 Classifying '{row.keyword}' → {result}")  # ← este también
+    for keyword_obj in pending_keywords:
+        try:
+            result = clasificar_keyword(keyword_obj.keyword)
+            keyword_obj.intent = result["intent"]
+            keyword_obj.format = result["recommended_format"]
+            db.add(keyword_obj)
+            saved_count += 1
 
-        row.intent = result.get("intent")
-        row.format = result.get("recommended_format")
-        count += 1
+            await asyncio.sleep(1.2)  # Evitar rate limit
+
+        except Exception as e:
+            print(f"❌ Error classifying '{keyword_obj.keyword}':", e)
 
     db.commit()
-    return {"status": "success", "saved": count}
+    return {"status": "success", "saved": saved_count}
