@@ -4,11 +4,11 @@
 import os
 import json
 import asyncio
-from datetime import datetime
-from typing import List
+from datetime import datetime, date
+from typing import List, Optional
 
 # Third-party
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -30,14 +30,15 @@ if not openai.api_key:
 
 app = FastAPI(title="SEO Intent Classifier")
 
+
+# 🟢 Aquí va el middleware CORS (justo después)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # === Pydantic Schemas ===
 
@@ -68,6 +69,9 @@ class KeywordHistoryResponse(BaseModel):
     ctr: float
     position: float
     created_at: datetime
+
+    # Hazlo Optional y dale valor por defecto None
+    gsc_date: Optional[date] = None
 
     model_config = {"from_attributes": True}
 
@@ -110,7 +114,6 @@ Response:
 
 # === API Routes ===
 
-# 1) Real-time classification (e.g. frontend form)
 @app.post("/clasificar", response_model=List[KeywordResponse])
 def clasificar_keywords(request: KeywordRequest):
     results = []
@@ -125,7 +128,6 @@ def clasificar_keywords(request: KeywordRequest):
     return results
 
 
-# 2) Fetch raw data from Google Search Console
 @app.get("/extraer-datos")
 def extraer_datos():
     try:
@@ -135,7 +137,6 @@ def extraer_datos():
         return {"status": "error", "message": str(e)}
 
 
-# 3) Save history with classification at save time
 @app.post("/save_history")
 def save_history(data: List[KeywordInput], db: Session = Depends(get_db)):
     for item in data:
@@ -154,7 +155,6 @@ def save_history(data: List[KeywordInput], db: Session = Depends(get_db)):
     return {"status": "ok"}
 
 
-# 4) Optional: classify up to 10 pending records (manual trigger)
 @app.post("/classify-pending")
 async def classify_pending(db: Session = Depends(get_db)):
     pending = db.query(KeywordHistory).filter(
@@ -175,33 +175,23 @@ async def classify_pending(db: Session = Depends(get_db)):
     return {"status": "success", "saved": saved}
 
 
-# 5) Read history (for your `/history` page)
 @app.get("/history", response_model=List[KeywordHistoryResponse])
-def read_history(db: Session = Depends(get_db)):
-    # 1) Traer hasta 10 registros todavía en pending
-    to_classify = (
-        db.query(KeywordHistory)
-          .filter(KeywordHistory.intent == "pending",
-                  KeywordHistory.format == "pending")
-          .order_by(KeywordHistory.created_at.desc())
-          .limit(10)
-          .all()
-    )
+def read_history(
+    db: Session = Depends(get_db),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    intent: Optional[str] = Query(None),
+    format: Optional[str] = Query(None),
+):
+    query = db.query(KeywordHistory)
 
-    # 2) Clasificamos y guardamos esos 10
-    if to_classify:
-        for kw in to_classify:
-            print(f"🔄 On-the-fly classify (limit 10): {kw.keyword}")
-            result = classify_keyword_with_ai(kw.keyword)
-            kw.intent = result["intent"]
-            kw.format = result["recommended_format"]
-            db.add(kw)
-        db.commit()
+    if start_date:
+        query = query.filter(KeywordHistory.gsc_date >= start_date)
+    if end_date:
+        query = query.filter(KeywordHistory.gsc_date <= end_date)
+    if intent:
+        query = query.filter(KeywordHistory.intent == intent)
+    if format:
+        query = query.filter(KeywordHistory.format == format)
 
-    # 3) Ahora sí devolvemos todo el historial, ya sin esos 10 pendings
-    all_rows = (
-        db.query(KeywordHistory)
-          .order_by(KeywordHistory.created_at.desc())
-          .all()
-    )
-    return all_rows
+    return query.order_by(KeywordHistory.gsc_date.desc()).all()

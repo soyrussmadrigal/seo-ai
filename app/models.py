@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date
 from datetime import datetime
 from app.db import Base  # ✅ Este es el import correcto
 
@@ -14,3 +14,6 @@ class KeywordHistory(Base):
     ctr = Column(Float)
     position = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # ✅ Nuevo campo requerido para filtros por fecha GSC
+    gsc_date = Column(Date)
