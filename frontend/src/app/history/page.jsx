@@ -7,46 +7,31 @@ import { useHistoryStore } from '../store/historyStore';
 export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-
   const { data, setData } = useHistoryStore();
 
   useEffect(() => {
-    const classifyAndLoad = async () => {
-      if (data.length > 0) {
-        setLoading(false); // ya está en cache
-        return;
-      }
-
+    const fetchHistory = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/classify-pending", {
-          method: "POST",
-        });
+        const res = await fetch("http://127.0.0.1:8000/history");
         const result = await res.json();
-
-        if (res.ok && result.status === "success") {
-          setMessage(`✅ ${result.saved} keywords classified successfully`);
+        if (Array.isArray(result)) {
+          setData(result);
         } else {
-          setMessage("⚠️ No new keywords to classify or error occurred");
-        }
-      } catch (err) {
-        console.error("❌ Error classifying pending keywords", err);
-        setMessage("❌ Error classifying pending keywords");
-      }
-
-      try {
-        const histRes = await fetch("http://127.0.0.1:8000/history");
-        const histData = await histRes.json();
-        if (Array.isArray(histData)) {
-          setData(histData); // guarda en zustand
+          setMessage("⚠️ Failed to load keyword history");
         }
       } catch (err) {
         console.error("❌ Failed to load keyword history", err);
+        setMessage("❌ Error loading keyword history");
       } finally {
         setLoading(false);
       }
     };
 
-    classifyAndLoad();
+    if (data.length === 0) {
+      fetchHistory(); // solo si no está en cache
+    } else {
+      setLoading(false);
+    }
   }, [data, setData]);
 
   return (
@@ -54,7 +39,7 @@ export default function HistoryPage() {
       <h1 className="text-3xl font-bold mb-4">Keyword History</h1>
 
       {message && (
-        <div className="bg-green-900 text-green-300 p-4 rounded mb-6">
+        <div className="bg-red-800 text-red-200 p-4 rounded mb-6">
           {message}
         </div>
       )}
