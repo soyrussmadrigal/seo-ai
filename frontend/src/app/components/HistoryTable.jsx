@@ -1,7 +1,17 @@
 "use client";
 
+import { useState } from "react";
+
 export default function HistoryTable({ data }) {
+  const [visibleCount, setVisibleCount] = useState(10);
+
   if (!data || data.length === 0) return null;
+
+  const visibleData = data.slice(0, visibleCount);
+
+  const handleLoadMore = () => {
+    setVisibleCount((prev) => prev + 10);
+  };
 
   return (
     <div className="bg-[#161b22] rounded-xl shadow-lg overflow-hidden mt-6">
@@ -20,7 +30,7 @@ export default function HistoryTable({ data }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
-            {data.map((item) => (
+            {visibleData.map((item) => (
               <tr key={item.id} className="hover:bg-[#1a1f24] transition">
                 <td className="px-6 py-4">{item.keyword}</td>
                 <td className="px-6 py-4 capitalize">{item.intent}</td>
@@ -37,6 +47,17 @@ export default function HistoryTable({ data }) {
           </tbody>
         </table>
       </div>
+
+      {visibleCount < data.length && (
+        <div className="flex justify-center py-4">
+          <button
+            onClick={handleLoadMore}
+            className="bg-blue-700 hover:bg-blue-800 text-white font-semibold px-4 py-2 rounded transition"
+          >
+            Load more
+          </button>
+        </div>
+      )}
     </div>
   );
 }

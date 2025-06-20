@@ -104,45 +104,12 @@ Response:
 
 # === API Routes ===
 
-@app.post("/clasificar", response_model=List[KeywordResponse])
-def clasificar_keywords(request: KeywordRequest):
-    results = []
-    for query in request.keywords:
-        result = classify_keyword_with_ai(query)
-        results.append({
-            "query": query,
-            "intent": result["intent"],
-            "recommended_format": result["format"]
-        })
-    return results
-
-@app.get("/extraer-datos")
-def extraer_datos():
-    try:
-        data = extraer_datos_gsc()
-        return {"status": "success", "rows": len(data), "data": data}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/save_history")
-def save_keywords(data: List[KeywordInput], db: Session = Depends(get_db)):
-    for item in data:
-        record = KeywordHistory(**item.dict())
-        db.add(record)
-    db.commit()
-    return {"status": "ok"}
-
-@app.get("/history", response_model=List[KeywordHistoryResponse])
-def read_history(db: Session = Depends(get_db)):
-    data = db.query(KeywordHistory).order_by(KeywordHistory.created_at.desc()).all()
-    return data
-
 @app.post("/classify-pending")
 async def classify_pending_keywords(db: Session = Depends(get_db)):
     pending_keywords = db.query(KeywordHistory).filter(
         KeywordHistory.intent == "pending",
         KeywordHistory.format == "pending"
-    ).all()
+    ).limit(10).all()
 
     saved_count = 0
 
@@ -154,9 +121,16 @@ async def classify_pending_keywords(db: Session = Depends(get_db)):
             kw.format = result["format"]
             db.add(kw)
             saved_count += 1
-            await asyncio.sleep(1.2)  # delay por rate limit
+            await asyncio.sleep(1.2)  # evita rate limit
         except Exception as e:
             print(f"❌ Error classifying '{kw.keyword}':", e)
 
     db.commit()
     return {"status": "success", "saved": saved_count}
+
+@app.get("/history", response_model=List[KeywordHistoryResponse])
+def read_history(db: Session = Depends(get_db)):
+    data = db.query(KeywordHistory).order_by(KeywordHistory.created_at.desc()).all()
+    if not data:
+        raise HTTPException(status_code=204, detail="No keyword history found")
+    return data
