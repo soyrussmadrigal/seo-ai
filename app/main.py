@@ -1,9 +1,11 @@
+from app.gsc_fetcher import extraer_datos_gsc
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 import openai
 import os
 from dotenv import load_dotenv
+from fastapi.middleware.cors import CORSMiddleware
 
 # Cargar variables del .env
 load_dotenv()
@@ -16,27 +18,42 @@ if not openai.api_key:
 # Inicializar FastAPI
 app = FastAPI(title="SEO Intent Classifier")
 
+# ✅ CORS para permitir conexión con frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Esquema de entrada
+
+
 class KeywordRequest(BaseModel):
     keywords: List[str]
 
 # Esquema de salida
+
+
 class KeywordResponse(BaseModel):
     query: str
     intent: str
     recommended_format: str
 
 # Clasificación individual usando OpenAI
+
+
 def clasificar_keyword(query: str) -> dict:
     prompt = f"""
-Dada la siguiente consulta de búsqueda de un usuario: "{query}", responde en JSON con dos campos:
-- "intent": una de estas opciones: ["informacional", "transaccional", "navegacional"]
-- "recommended_format": una de estas opciones: ["artículo", "herramienta", "comparador", "landing page", "guía", "FAQ", "otro"]
+Given the following user search query: "{query}", respond in JSON with two fields:
+- "intent": choose from ["informational", "transactional", "navigational"]
+- "recommended_format": choose from ["article", "tool", "comparator", "landing page", "guide", "FAQ", "other"]
 
-Ejemplo de salida:
-{{"intent": "informacional", "recommended_format": "artículo"}}
+Example output:
+{{"intent": "informational", "recommended_format": "article"}}
 
-Respuesta:
+Response:
 """
 
     try:
@@ -52,6 +69,8 @@ Respuesta:
         return {"intent": "desconocido", "recommended_format": "otro"}
 
 # Ruta principal para clasificar
+
+
 @app.post("/clasificar", response_model=List[KeywordResponse])
 def clasificar_keywords(request: KeywordRequest):
     resultados = []
@@ -65,7 +84,6 @@ def clasificar_keywords(request: KeywordRequest):
         })
     return resultados
 
-from app.gsc_fetcher import extraer_datos_gsc
 
 @app.get("/extraer-datos")
 def extraer_datos():
