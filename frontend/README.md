@@ -34,3 +34,29 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+seo-ai-assistant/
+├── .env                          # Environment variables (e.g. OPENAI_API_KEY)
+├── README.md                     # Project documentation
+├── requirements.txt              # Python dependencies (FastAPI, OpenAI, Pandas, etc.)
+├── main.py                       # FastAPI entry point
+├── gsc_fetcher.py                # Fetch keywords from Google Search Console
+├── ai_labeler.py                 # Uses OpenAI to classify keyword intent + format
+├── data/
+│   ├── gsc_keywords.csv          # Raw keywords from GSC
+│   └── gsc_keywords_labeled.csv # Classified keywords with intent & format
+├── frontend/                     # Next.js frontend
+│   ├── package.json
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   ├── public/
+│   │   └── favicon.ico
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.jsx             # Main UI page (form + results)
+│   │   │   └── layout.js            # Root layout (html/body wrapper)
+│   │   ├── components/
+│   │   │   └── ResultsTable.jsx     # Reusable results table component
+│   │   └── styles/
+│   │       └── globals.css          # Global styles (Tailwind base/theme)
+└── venv/                          # Python virtual environment (if created locally)
