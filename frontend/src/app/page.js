@@ -1,4 +1,3 @@
-// app/page.jsx
 "use client";
 
 import { useState } from "react";
@@ -30,28 +29,42 @@ export default function Home() {
   };
 
   return (
-    <main className="max-w-3xl mx-auto py-12 px-6">
-      <h1 className="text-3xl font-bold mb-4">🔍 SEO Intent Classifier</h1>
+    <main className="max-w-4xl mx-auto py-16 px-6 min-h-screen bg-[#0d1117] text-white">
+      <div className="text-center mb-10">
+        <h1 className="text-4xl font-extrabold tracking-tight mb-2 flex justify-center items-center gap-2">
+          <span className="text-indigo-400">🔎</span> SEO Intent Classifier
+        </h1>
+        <p className="text-gray-400 text-sm">
+          Analyze search intent and get smart content recommendations
+        </p>
+      </div>
 
-      <textarea
-        className="w-full h-40 p-4 border rounded-md shadow mb-4 resize-none"
-        placeholder="Enter one keyword per line..."
-        value={keywords}
-        onChange={(e) => setKeywords(e.target.value)}
-      />
+      <div className="bg-[#161b22] p-6 rounded-xl shadow-md">
+        <label htmlFor="keywords" className="block text-sm font-medium mb-2">
+          Enter one keyword per line:
+        </label>
+        <textarea
+          id="keywords"
+          className="w-full h-40 p-4 rounded-md border border-gray-600 bg-[#0d1117] text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition resize-none"
+          placeholder="e.g.\nbest credit cards\nhow to improve SEO\ncar insurance simulator"
+          value={keywords}
+          onChange={(e) => setKeywords(e.target.value)}
+        />
 
-      <button
-        onClick={handleClassify}
-        className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800 transition"
-        disabled={loading}
-      >
-        {loading ? "Classifying..." : "Classify Keywords"}
-      </button>
+        <button
+          onClick={handleClassify}
+          className="mt-4 w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading}
+        >
+          {loading ? "Classifying..." : "Classify Keywords"}
+        </button>
+      </div>
 
       {results.length > 0 && (
-        <div className="mt-8">
+        <section className="mt-12">
+          <h2 className="text-2xl font-bold mb-4">Classification Results</h2>
           <ResultsTable data={results} />
-        </div>
+        </section>
       )}
     </main>
   );

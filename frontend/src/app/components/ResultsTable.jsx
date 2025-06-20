@@ -1,28 +1,25 @@
 "use client";
 
-import React from "react";
-
-const ResultsTable = ({ data }) => {
+export default function ResultsTable({ data }) {
   if (!data || data.length === 0) return null;
 
   return (
-    <div className="bg-[#0d1117] p-6 rounded-2xl shadow-xl mt-8">
-      <h2 className="text-white text-xl font-bold mb-4">Classification Results</h2>
+    <div className="bg-[#161b22] rounded-xl shadow-lg overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm text-left text-white border border-gray-700 rounded-md">
-          <thead className="bg-[#010409] text-gray-300">
+        <table className="min-w-full text-sm text-left text-white">
+          <thead className="bg-[#010409] text-gray-300 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-4 py-3 border-b border-gray-700">Keyword</th>
-              <th className="px-4 py-3 border-b border-gray-700">Intent</th>
-              <th className="px-4 py-3 border-b border-gray-700">Recommended Format</th>
+              <th className="px-6 py-3 border-b border-gray-700">Keyword</th>
+              <th className="px-6 py-3 border-b border-gray-700">Intent</th>
+              <th className="px-6 py-3 border-b border-gray-700">Recommended Format</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
             {data.map((item, idx) => (
-              <tr key={idx} className="hover:bg-[#161b22] transition-colors">
-                <td className="px-4 py-2">{item.query}</td>
-                <td className="px-4 py-2 capitalize">{item.intent}</td>
-                <td className="px-4 py-2 capitalize">{item.recommended_format}</td>
+              <tr key={idx} className="hover:bg-[#1a1f24] transition">
+                <td className="px-6 py-4">{item.query}</td>
+                <td className="px-6 py-4 capitalize">{item.intent}</td>
+                <td className="px-6 py-4 capitalize">{item.recommended_format}</td>
               </tr>
             ))}
           </tbody>
@@ -30,6 +27,4 @@ const ResultsTable = ({ data }) => {
       </div>
     </div>
   );
-};
-
-export default ResultsTable;
+}
