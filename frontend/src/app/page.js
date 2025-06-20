@@ -11,6 +11,7 @@ export default function Home() {
   const handleClassify = async () => {
     setLoading(true);
     try {
+      // Clasificación con FastAPI
       const res = await fetch("http://127.0.0.1:8000/clasificar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -21,6 +22,25 @@ export default function Home() {
 
       const data = await res.json();
       setResults(data);
+
+      // Guardar historial en FastAPI
+      await fetch("http://127.0.0.1:8000/save_history", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          data.map((item) => ({
+            keyword: item.keyword,
+            intent: item.intent,
+            format: item.format,
+            clicks: item.clicks || 0,
+            impressions: item.impressions || 0,
+            ctr: item.ctr || 0,
+            position: item.position || 0,
+          }))
+        ),
+      });
     } catch (error) {
       console.error("Error:", error);
     } finally {
