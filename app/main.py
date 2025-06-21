@@ -187,6 +187,7 @@ def read_history(
         query = query.filter(KeywordHistory.format == format)
     return query.order_by(KeywordHistory.gsc_date.desc()).all()
 
+
 @app.get("/history/keyword")
 def get_keyword_timeseries(text: str, db: Session = Depends(get_db)):
     results = (

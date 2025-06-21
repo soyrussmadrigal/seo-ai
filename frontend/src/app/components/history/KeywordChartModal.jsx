@@ -48,6 +48,7 @@ export default function KeywordChartModal({ keyword, onClose }) {
             {
               label: "Position",
               data: position,
+              yAxisID: "yPosition",
               borderWidth: 2,
               borderColor: "#3b82f6",
               backgroundColor: "rgba(59, 130, 246, 0.1)",
@@ -55,6 +56,7 @@ export default function KeywordChartModal({ keyword, onClose }) {
             {
               label: "Clicks",
               data: clicks,
+              yAxisID: "y",
               borderWidth: 2,
               borderColor: "#10b981",
               backgroundColor: "rgba(16, 185, 129, 0.1)",
@@ -62,6 +64,7 @@ export default function KeywordChartModal({ keyword, onClose }) {
             {
               label: "CTR",
               data: ctr,
+              yAxisID: "y",
               borderWidth: 2,
               borderColor: "#f59e0b",
               backgroundColor: "rgba(245, 158, 11, 0.1)",
@@ -91,7 +94,25 @@ export default function KeywordChartModal({ keyword, onClose }) {
           {loading ? (
             <p className="text-gray-500">Cargando datos...</p>
           ) : chartData ? (
-            <Line data={chartData} />
+            <Line
+              data={chartData}
+              options={{
+                responsive: true,
+                scales: {
+                  y: {
+                    beginAtZero: false,
+                  },
+                  yPosition: {
+                    position: "left",
+                    reverse: true,
+                    title: {
+                      display: true,
+                      text: "Position",
+                    },
+                  },
+                },
+              }}
+            />
           ) : (
             <p className="text-red-500">No se encontraron datos.</p>
           )}
@@ -101,7 +122,7 @@ export default function KeywordChartModal({ keyword, onClose }) {
               onClick={onClose}
               className="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-700"
             >
-              Cerrar
+              Close
             </button>
           </div>
         </Dialog.Panel>
