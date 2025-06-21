@@ -26,7 +26,7 @@ export default function HistoryTable({ data }) {
               <th className="px-6 py-3 border-b border-gray-700">CTR</th>
               <th className="px-6 py-3 border-b border-gray-700">Position</th>
               <th className="px-6 py-3 border-b border-gray-700">Date</th>
-              <th className="px-6 py-3 border-b border-gray-700 text-center">Gráfico</th>
+              <th className="px-6 py-3 border-b border-gray-700 text-center">Chart</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
@@ -46,7 +46,7 @@ export default function HistoryTable({ data }) {
                   <button
                     onClick={() => setSelectedKeyword(item.keyword)}
                     className="text-blue-400 hover:text-blue-600 transition"
-                    title="Ver gráfico"
+                    title="See Chart"
                   >
                     <BarChart2 className="w-5 h-5 inline" />
                   </button>
