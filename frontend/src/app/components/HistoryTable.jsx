@@ -1,10 +1,12 @@
-// src/app/components/HistoryTable.jsx
 "use client";
 
 import { useState } from "react";
+import KeywordChartModal from './history/KeywordChartModal';
+import { BarChart2 } from 'lucide-react';
 
 export default function HistoryTable({ data }) {
   const [visibleCount, setVisibleCount] = useState(10);
+  const [selectedKeyword, setSelectedKeyword] = useState(null);
 
   if (!data || data.length === 0) return null;
 
@@ -20,12 +22,11 @@ export default function HistoryTable({ data }) {
               <th className="px-6 py-3 border-b border-gray-700">Intent</th>
               <th className="px-6 py-3 border-b border-gray-700">Format</th>
               <th className="px-6 py-3 border-b border-gray-700">Clicks</th>
-              <th className="px-6 py-3 border-b border-gray-700">
-                Impressions
-              </th>
+              <th className="px-6 py-3 border-b border-gray-700">Impressions</th>
               <th className="px-6 py-3 border-b border-gray-700">CTR</th>
               <th className="px-6 py-3 border-b border-gray-700">Position</th>
               <th className="px-6 py-3 border-b border-gray-700">Date</th>
+              <th className="px-6 py-3 border-b border-gray-700 text-center">Gráfico</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
@@ -39,10 +40,16 @@ export default function HistoryTable({ data }) {
                 <td className="px-6 py-4">{item.ctr?.toFixed(2)}%</td>
                 <td className="px-6 py-4">{item.position?.toFixed(2)}</td>
                 <td className="px-6 py-4">
-                  {/* Display the GSC date used for filtering */}
-                  {new Date(item.gsc_date + "T00:00:00").toLocaleDateString(
-                    "en-US"
-                  )}
+                  {new Date(item.gsc_date + "T00:00:00").toLocaleDateString("en-US")}
+                </td>
+                <td className="px-6 py-4 text-center">
+                  <button
+                    onClick={() => setSelectedKeyword(item.keyword)}
+                    className="text-blue-400 hover:text-blue-600 transition"
+                    title="Ver gráfico"
+                  >
+                    <BarChart2 className="w-5 h-5 inline" />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -59,6 +66,13 @@ export default function HistoryTable({ data }) {
             Load more
           </button>
         </div>
+      )}
+
+      {selectedKeyword && (
+        <KeywordChartModal
+          keyword={selectedKeyword}
+          onClose={() => setSelectedKeyword(null)}
+        />
       )}
     </div>
   );

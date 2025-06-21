@@ -186,3 +186,22 @@ def read_history(
     if format:
         query = query.filter(KeywordHistory.format == format)
     return query.order_by(KeywordHistory.gsc_date.desc()).all()
+
+@app.get("/history/keyword")
+def get_keyword_timeseries(text: str, db: Session = Depends(get_db)):
+    results = (
+        db.query(KeywordHistory)
+        .filter(KeywordHistory.keyword == text)
+        .order_by(KeywordHistory.gsc_date.asc())
+        .all()
+    )
+
+    return [
+        {
+            "gsc_date": r.gsc_date.isoformat(),
+            "clicks": r.clicks,
+            "ctr": r.ctr,
+            "position": r.position,
+        }
+        for r in results
+    ]
