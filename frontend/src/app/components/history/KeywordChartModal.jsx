@@ -13,7 +13,6 @@ import {
   Legend,
 } from "chart.js";
 
-// Registro necesario para Chart.js
 ChartJS.register(
   LineElement,
   CategoryScale,
@@ -26,6 +25,51 @@ ChartJS.register(
 export default function KeywordChartModal({ keyword, onClose }) {
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [recommendation, setRecommendation] = useState(null);
+
+  // Helper to calculate if there's a downward trend in position
+  function detectDownwardTrend(position = []) {
+    let drops = 0;
+    let rises = 0;
+    for (let i = 1; i < position.length; i++) {
+      if (position[i] > position[i - 1]) {
+        drops++;
+      } else if (position[i] < position[i - 1]) {
+        rises++;
+      }
+    }
+    return { drops, rises };
+  }
+
+  // Generate dynamic recommendation based on trend analysis
+  function getRecommendation(position, ctr, clicks) {
+    if (position.length < 3) return null;
+
+    const { drops, rises } = detectDownwardTrend(position);
+    const last = position[position.length - 1];
+    const first = position[0];
+    const ctrNow = ctr[ctr.length - 1];
+    const ctrBefore = ctr[0];
+    const clicksNow = clicks[clicks.length - 1];
+    const clicksBefore = clicks[0];
+
+    // Rule 1: Overall ranking trend is declining
+    if (drops > rises && last > first) {
+      return `⚠️ Your ranking has declined during this period. Consider refreshing your content, adding internal links, or checking competitors for this keyword.`;
+    }
+
+    // Rule 2: High impressions but low CTR
+    if (ctrNow < 1 && clicksNow < clicksBefore) {
+      return `📉 You're getting visibility but not enough clicks. Consider improving your title or meta description with more compelling CTAs.`;
+    }
+
+    // Rule 3: Position stable, CTR consistently low
+    if (Math.abs(last - first) < 1 && ctrNow < 2) {
+      return `ℹ️ Your position is stable but CTR is low. Try testing different hooks in your meta title or using emojis/rich snippets.`;
+    }
+
+    return null;
+  }
 
   useEffect(() => {
     const fetchKeywordData = async () => {
@@ -41,6 +85,9 @@ export default function KeywordChartModal({ keyword, onClose }) {
         const position = json.map((item) => item.position);
         const clicks = json.map((item) => item.clicks);
         const ctr = json.map((item) => item.ctr);
+
+        const rec = getRecommendation(position, ctr, clicks);
+        setRecommendation(rec);
 
         setChartData({
           labels,
@@ -72,7 +119,7 @@ export default function KeywordChartModal({ keyword, onClose }) {
           ],
         });
       } catch (err) {
-        console.error("❌ Error al cargar datos del gráfico:", err);
+        console.error("❌ Error loading chart data:", err);
       } finally {
         setLoading(false);
       }
@@ -84,7 +131,6 @@ export default function KeywordChartModal({ keyword, onClose }) {
   return (
     <Dialog open={true} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/60" aria-hidden="true" />
-
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="bg-white max-w-3xl w-full rounded-xl p-6 shadow-xl">
           <Dialog.Title className="text-xl font-semibold mb-4">
@@ -92,29 +138,42 @@ export default function KeywordChartModal({ keyword, onClose }) {
           </Dialog.Title>
 
           {loading ? (
-            <p className="text-gray-500">Cargando datos...</p>
+            <p className="text-gray-500">Loading data...</p>
           ) : chartData ? (
-            <Line
-              data={chartData}
-              options={{
-                responsive: true,
-                scales: {
-                  y: {
-                    beginAtZero: false,
-                  },
-                  yPosition: {
-                    position: "left",
-                    reverse: true,
-                    title: {
-                      display: true,
-                      text: "Position",
+            <>
+              <Line
+                data={chartData}
+                options={{
+                  responsive: true,
+                  scales: {
+                    y: {
+                      beginAtZero: false,
+                    },
+                    yPosition: {
+                      position: "left",
+                      reverse: true,
+                      title: {
+                        display: true,
+                        text: "Position",
+                      },
                     },
                   },
-                },
-              }}
-            />
+                }}
+              />
+              {recommendation ? (
+                <div className="mt-6 p-4 bg-yellow-100 text-yellow-800 rounded text-sm">
+                  <strong>SEO insight:</strong>
+                  <br />
+                  {recommendation}
+                </div>
+              ) : (
+                <div className="mt-6 p-4 text-sm text-gray-500">
+                  No SEO insight available based on current trend.
+                </div>
+              )}
+            </>
           ) : (
-            <p className="text-red-500">No se encontraron datos.</p>
+            <p className="text-red-500">No data found.</p>
           )}
 
           <div className="mt-6 flex justify-end">
