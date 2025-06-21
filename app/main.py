@@ -1,4 +1,4 @@
-# === Organized Imports ===
+# === Imports ===
 
 # Built-in
 import os
@@ -8,33 +8,36 @@ from datetime import datetime, date
 from typing import List, Optional
 
 # Third-party
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 import openai
 
 # Internal
-from app.db import SessionLocal, engine
-from app.models import Base, KeywordHistory
+from app.db import SessionLocal
+from app.models import KeywordHistory
 from app.gsc_fetcher import extraer_datos_gsc
 
-
-# === Initial Configuration ===
+# === App Initialization ===
 
 load_dotenv()
+print("✅ Ruta JSON:", os.getenv("GSC_SERVICE_ACCOUNT_FILE"))
+print("🧪 Existe archivo:", os.path.exists(
+    os.getenv("GSC_SERVICE_ACCOUNT_FILE")))
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 if not openai.api_key:
-    raise ValueError("❌ OPENAI_API_KEY is not set in environment variables")
+    raise ValueError("❌ OPENAI_API_KEY is missing from environment variables")
 
-app = FastAPI(title="SEO Intent Classifier")
+app = FastAPI(title="SEO AI Classifier")
 
+# === CORS Configuration ===
 
-# 🟢 Aquí va el middleware CORS (justo después)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["*"],          # durante desarrollo puedes usar "*"
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,13 +45,16 @@ app.add_middleware(
 
 # === Pydantic Schemas ===
 
+
 class KeywordRequest(BaseModel):
     keywords: List[str]
+
 
 class KeywordResponse(BaseModel):
     query: str
     intent: str
     recommended_format: str
+
 
 class KeywordInput(BaseModel):
     keyword: str
@@ -58,25 +64,26 @@ class KeywordInput(BaseModel):
     impressions: int
     ctr: float
     position: float
+    date: str
+
 
 class KeywordHistoryResponse(BaseModel):
     id: int
     keyword: str
-    intent: str
-    format: str
+    intent: Optional[str] = None    # ahora acepta null
+    format: Optional[str] = None
     clicks: int
     impressions: int
     ctr: float
     position: float
     created_at: datetime
-
-    # Hazlo Optional y dale valor por defecto None
     gsc_date: Optional[date] = None
 
-    model_config = {"from_attributes": True}
-
+    class Config:
+        orm_mode = True
 
 # === Database Dependency ===
+
 
 def get_db():
     db = SessionLocal()
@@ -85,14 +92,14 @@ def get_db():
     finally:
         db.close()
 
+# === AI Classification Function ===
 
-# === Intent Classification with OpenAI ===
 
 def classify_keyword_with_ai(query: str) -> dict:
     prompt = f"""
-Given the following user search query: "{query}", respond in JSON with two fields:
-- "intent": choose from ["informational", "transactional", "navigational"]
-- "recommended_format": choose from ["article", "tool", "comparator", "landing page", "guide", "FAQ", "other"]
+Given the following user search query: \"{query}\", respond in JSON with two fields:
+- \"intent\": choose from [\"informational\", \"transactional\", \"navigational\"]
+- \"recommended_format\": choose from [\"article\", \"tool\", \"comparator\", \"landing page\", \"guide\", \"FAQ\", \"other\"]
 
 Example:
 {{"intent": "informational", "recommended_format": "article"}}
@@ -111,14 +118,14 @@ Response:
         print(f"❌ Error classifying '{query}':", e)
         return {"intent": "unknown", "recommended_format": "other"}
 
-
 # === API Routes ===
+
 
 @app.post("/clasificar", response_model=List[KeywordResponse])
 def clasificar_keywords(request: KeywordRequest):
     results = []
     for query in request.keywords:
-        print(f"📌 Classifying (on-the-fly): {query}")
+        print(f"📌 Classifying: {query}")
         result = classify_keyword_with_ai(query)
         results.append({
             "query": query,
@@ -129,16 +136,20 @@ def clasificar_keywords(request: KeywordRequest):
 
 
 @app.get("/extraer-datos")
-def extraer_datos():
+def extraer_datos(days: int = Query(default=1, ge=1, le=90)):
     try:
-        data = extraer_datos_gsc()
+        print("➡️ Starting extraction...")
+        data = extraer_datos_gsc(days)
+        print(f"✅ Extracted {len(data)} rows")
         return {"status": "success", "rows": len(data), "data": data}
     except Exception as e:
+        print(f"❌ Error extracting GSC data: {e}")
         return {"status": "error", "message": str(e)}
 
 
 @app.post("/save_history")
 def save_history(data: List[KeywordInput], db: Session = Depends(get_db)):
+    saved = 0
     for item in data:
         classification = classify_keyword_with_ai(item.keyword)
         record = KeywordHistory(
@@ -149,30 +160,12 @@ def save_history(data: List[KeywordInput], db: Session = Depends(get_db)):
             impressions=item.impressions,
             ctr=item.ctr,
             position=item.position,
+            gsc_date=datetime.fromisoformat(item.date).date()
         )
         db.add(record)
-    db.commit()
-    return {"status": "ok"}
-
-
-@app.post("/classify-pending")
-async def classify_pending(db: Session = Depends(get_db)):
-    pending = db.query(KeywordHistory).filter(
-        KeywordHistory.intent == "pending",
-        KeywordHistory.format == "pending"
-    ).limit(10).all()
-
-    saved = 0
-    for kw in pending:
-        print(f"🔍 Classifying pending: {kw.keyword}")
-        result = classify_keyword_with_ai(kw.keyword)
-        kw.intent = result["intent"]
-        kw.format = result["recommended_format"]
-        db.add(kw)
         saved += 1
-        await asyncio.sleep(1.2)
     db.commit()
-    return {"status": "success", "saved": saved}
+    return {"status": "ok", "saved": saved}
 
 
 @app.get("/history", response_model=List[KeywordHistoryResponse])
@@ -184,7 +177,6 @@ def read_history(
     format: Optional[str] = Query(None),
 ):
     query = db.query(KeywordHistory)
-
     if start_date:
         query = query.filter(KeywordHistory.gsc_date >= start_date)
     if end_date:
@@ -193,5 +185,4 @@ def read_history(
         query = query.filter(KeywordHistory.intent == intent)
     if format:
         query = query.filter(KeywordHistory.format == format)
-
     return query.order_by(KeywordHistory.gsc_date.desc()).all()

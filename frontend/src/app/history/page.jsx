@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import HistoryTable from "../components/HistoryTable";
 import { useHistoryStore } from "../store/historyStore";
-
+import FilterForm from "../components/FilterForm";
 
 export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
@@ -27,9 +27,17 @@ export default function HistoryPage() {
       const result = await res.json();
 
       if (Array.isArray(result)) {
-        setData(result);
-        setFilteredData(result); // Inicial sin filtros
-        console.log("History data:", result.slice(0, 5));
+        // Normaliza campos nulos por si el backend no los convierte
+        const normalized = result.map((item) => ({
+          ...item,
+          intent: item.intent ?? "",
+          format: item.format ?? "",
+        }));
+
+        setData(normalized);
+        setFilteredData(normalized);
+        window.historyData = normalized;
+        console.log("History data:", normalized.slice(0, 5));
       } else {
         setMessage("⚠️ Failed to load keyword history");
       }
@@ -42,37 +50,35 @@ export default function HistoryPage() {
   };
 
   const applyFilters = () => {
-    let filtered = data;
+    console.log("🔎 Filtros aplicados con:", {
+      startDate,
+      endDate,
+      intent,
+      format,
+    });
 
-    if (startDate) {
-      filtered = filtered.filter(item => {
-        const date = new Date(item.gsc_date);
-        return date >= new Date(startDate);
-      });
-    }
+    const filtered = data.filter((item) => {
+      const itemDate = new Date(item.gsc_date + "T00:00:00");
 
-    if (endDate) {
-      filtered = filtered.filter(item => {
-        const date = new Date(item.gsc_date);
-        return date <= new Date(endDate);
-      });
-    }
+      const start = startDate ? new Date(startDate + "T00:00:00") : null;
+      const end = endDate ? new Date(endDate + "T23:59:59") : null;
 
-    if (intent) {
-      filtered = filtered.filter(item => item.intent === intent);
-    }
+      return (
+        (!start || itemDate >= start) &&
+        (!end || itemDate <= end) &&
+        (!intent || item.intent === intent) &&
+        (!format || item.format === format)
+      );
+    });
 
-    if (format) {
-      filtered = filtered.filter(item => item.format === format);
-    }
-
+    console.log("🎯 Resultados filtrados:", filtered.length);
     setFilteredData(filtered);
   };
 
   useEffect(() => {
     if (data.length === 0) fetchHistory();
     else {
-      setFilteredData(data); // si ya estaba cargado en Zustand
+      setFilteredData(data);
       setLoading(false);
     }
   }, []);
@@ -81,73 +87,17 @@ export default function HistoryPage() {
     <main className="max-w-6xl mx-auto px-6 py-12 text-white">
       <h1 className="text-3xl font-bold mb-6">Keyword History</h1>
 
-      {/* 🎯 Filtros */}
-      <form
-        className="bg-[#161b22] p-4 rounded-lg mb-6 flex flex-wrap gap-4 items-end"
-        onSubmit={(e) => {
-          e.preventDefault();
-          applyFilters();
-        }}
-      >
-        <div>
-          <label className="block text-sm mb-1">Start Date</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="bg-gray-800 text-white rounded px-3 py-1"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">End Date</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="bg-gray-800 text-white rounded px-3 py-1"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">Intent</label>
-          <select
-            value={intent}
-            onChange={(e) => setIntent(e.target.value)}
-            className="bg-gray-800 text-white rounded px-3 py-1"
-          >
-            <option value="">All</option>
-            <option value="informational">Informational</option>
-            <option value="transactional">Transactional</option>
-            <option value="navigational">Navigational</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm mb-1">Format</label>
-          <select
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-            className="bg-gray-800 text-white rounded px-3 py-1"
-          >
-            <option value="">All</option>
-            <option value="article">Article</option>
-            <option value="tool">Tool</option>
-            <option value="comparator">Comparator</option>
-            <option value="landing page">Landing Page</option>
-            <option value="guide">Guide</option>
-            <option value="FAQ">FAQ</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-
-        <button
-          type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-        >
-          Apply Filters
-        </button>
-      </form>
+      <FilterForm
+        startDate={startDate}
+        endDate={endDate}
+        intent={intent}
+        format={format}
+        setStartDate={setStartDate}
+        setEndDate={setEndDate}
+        setIntent={setIntent}
+        setFormat={setFormat}
+        applyFilters={applyFilters}
+      />
 
       {message && (
         <div className="bg-red-800 text-red-200 p-4 rounded mb-6">

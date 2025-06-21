@@ -1,51 +1,58 @@
 # app/gsc_fetcher.py
-import pandas as pd
-from datetime import datetime, timedelta
+
+from datetime import date, timedelta
+import os
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-import os
 
-def extraer_datos_gsc(site_url="https://www.saldosimple.com/"):
-    SCOPES = ['https://www.googleapis.com/auth/webmasters.readonly']
-    SERVICE_ACCOUNT_FILE = 'gsc_service_account.json'
+# Environment variables
+SERVICE_ACCOUNT_FILE = os.getenv("GSC_SERVICE_ACCOUNT_FILE")
+SITE_URL = os.getenv("GSC_SITE_URL")
 
-    credentials = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES
+
+def extraer_datos_gsc(days: int = 30):
+    """
+    Fetches data from Google Search Console for the last `days` days (including today).
+    Returns a list of dictionaries with: keyword, date, clicks, impressions, ctr, position.
+    """
+    if not SERVICE_ACCOUNT_FILE or not SITE_URL:
+        raise ValueError(
+            "Missing GSC_SERVICE_ACCOUNT_FILE or GSC_SITE_URL in environment variables.")
+
+    # Authenticate with the service account
+    creds = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE,
+        scopes=["https://www.googleapis.com/auth/webmasters.readonly"]
     )
-    service = build('searchconsole', 'v1', credentials=credentials)
+    service = build("searchconsole", "v1", credentials=creds)
 
-    end_date = datetime.today().date()
-    start_date = end_date - timedelta(days=30)
+    # Date range
+    today = date.today()
+    start = (today - timedelta(days=days - 1)).isoformat()
+    end = today.isoformat()
 
-    request = {
-        'startDate': start_date.isoformat(),
-        'endDate': end_date.isoformat(),
-        'dimensions': ['query', 'page'],
-        'rowLimit': 1000
+    # Query Search Console API
+    body = {
+        "startDate": start,
+        "endDate": end,
+        "dimensions": ["query", "date"],
+        "rowLimit": 25000
     }
 
-    response = service.searchanalytics().query(siteUrl=site_url, body=request).execute()
+    response = service.searchanalytics().query(
+        siteUrl=SITE_URL, body=body).execute()
 
-    if 'rows' in response:
-        data = []
-        for row in response['rows']:
-            query, page = row['keys']
-            clicks = row.get('clicks', 0)
-            impressions = row.get('impressions', 0)
-            ctr = round(row.get('ctr', 0) * 100, 2)
-            position = round(row.get('position', 0), 2)
-            data.append({
-                'query': query,
-                'page': page,
-                'clicks': clicks,
-                'impressions': impressions,
-                'ctr': ctr,
-                'position': position
-            })
+    # Format response
+    data = []
+    for row in response.get("rows", []):
+        query, row_date = row.get("keys", ["", ""])
+        data.append({
+            "keyword": query,
+            "date": row_date,
+            "clicks": row.get("clicks", 0),
+            "impressions": row.get("impressions", 0),
+            "ctr": row.get("ctr", 0.0),
+            "position": row.get("position", 0.0),
+        })
 
-        df = pd.DataFrame(data)
-        os.makedirs("data", exist_ok=True)
-        df.to_csv("data/gsc_keywords.csv", index=False)
-        return data
-    else:
-        return []
+    return data
